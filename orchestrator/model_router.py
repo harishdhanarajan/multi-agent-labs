@@ -49,7 +49,14 @@ class ModelRouter:
 
     # -- public API --------------------------------------------------------
 
-    def generate(self, role: str, prompt: str, *, max_tokens: int | None = None) -> str:
+    def generate(
+        self,
+        role: str,
+        prompt: str,
+        *,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+    ) -> str:
         """Send *prompt* to the model assigned to *role*, with automatic fallback."""
         models_cfg = self._config["models"]
         if role not in models_cfg:
@@ -57,42 +64,74 @@ class ModelRouter:
 
         cfg = models_cfg[role]
         tokens = max_tokens or cfg.get("max_tokens", 4096)
+        temp = temperature if temperature is not None else cfg.get("temperature")
 
         try:
-            return self._dispatch(cfg["provider"], cfg["model"], prompt, tokens)
+            return self._dispatch(cfg["provider"], cfg["model"], prompt, tokens, temp)
         except Exception:
             logger.warning(
                 "Primary provider failed for role=%s, falling back", role, exc_info=True,
             )
             fb = self._config["fallback"]
-            return self._dispatch(fb["provider"], fb["model"], prompt, fb.get("max_tokens", 4096))
+            return self._dispatch(
+                fb["provider"],
+                fb["model"],
+                prompt,
+                fb.get("max_tokens", 4096),
+                temp,
+            )
 
     # -- internal dispatch -------------------------------------------------
 
-    def _dispatch(self, provider: str, model: str, prompt: str, max_tokens: int) -> str:
+    def _dispatch(
+        self,
+        provider: str,
+        model: str,
+        prompt: str,
+        max_tokens: int,
+        temperature: float | None = None,
+    ) -> str:
         logger.info("[ModelRouter] provider=%s model=%s max_tokens=%d", provider, model, max_tokens)
         if provider == "anthropic":
-            return self._call_anthropic(model, prompt, max_tokens)
+            return self._call_anthropic(model, prompt, max_tokens, temperature)
         if provider == "openai":
-            return self._call_openai(model, prompt, max_tokens)
+            return self._call_openai(model, prompt, max_tokens, temperature)
         if provider == "replicate":
             return self._call_replicate(model, prompt, max_tokens)
         raise ValueError(f"Unknown provider: {provider}")
 
-    def _call_anthropic(self, model: str, prompt: str, max_tokens: int) -> str:
-        response = self.anthropic_client.messages.create(
-            model=model,
-            max_tokens=max_tokens,
-            messages=[{"role": "user", "content": prompt}],
-        )
+    def _call_anthropic(
+        self,
+        model: str,
+        prompt: str,
+        max_tokens: int,
+        temperature: float | None = None,
+    ) -> str:
+        kwargs = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        response = self.anthropic_client.messages.create(**kwargs)
         return response.content[0].text
 
-    def _call_openai(self, model: str, prompt: str, max_tokens: int) -> str:
-        response = self.openai_client.chat.completions.create(
-            model=model,
-            max_tokens=max_tokens,
-            messages=[{"role": "user", "content": prompt}],
-        )
+    def _call_openai(
+        self,
+        model: str,
+        prompt: str,
+        max_tokens: int,
+        temperature: float | None = None,
+    ) -> str:
+        kwargs = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if temperature is not None:
+            kwargs["temperature"] = temperature
+        response = self.openai_client.chat.completions.create(**kwargs)
         return response.choices[0].message.content
 
     def _call_replicate(self, model: str, prompt: str, max_tokens: int) -> str:

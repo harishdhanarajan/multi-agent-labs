@@ -13,12 +13,19 @@ from agents.planner_agent import PlannerAgent
 from agents.reviewer_agent import ReviewerAgent
 from agents.tester_agent import TesterAgent
 from execution.patch_engine import PatchEngine
+from orchestrator.intent_classifier import (
+    INTENT_AMBIGUOUS,
+    INTENT_BUILD,
+    INTENT_QUESTION,
+    IntentClassifier,
+)
 from orchestrator.model_router import ModelRouter
+from orchestrator.qa_responder import QAResponder
 from tasks.task_graph_builder import TaskGraphBuilder
 from tasks.task_models import ReviewVerdict
 from tools.test_runner import TestRunner
 
-console = Console()
+console = Console(force_terminal=True)
 logger = logging.getLogger(__name__)
 
 MAX_REVIEW_ROUNDS = 3
@@ -31,6 +38,21 @@ def run_pipeline(user_request: str) -> None:
     console.print(Panel(f"[bold cyan]Request:[/] {user_request}", title="Multi-Agent Pipeline"))
 
     router = ModelRouter()
+
+    intent = IntentClassifier(router).classify(user_request)
+    if intent == INTENT_QUESTION:
+        console.print("\n[bold yellow]Intent: QUESTION[/]")
+        answer = QAResponder(router).answer(user_request)
+        console.print(Panel(answer or "(No answer returned)", title="Q&A Response"))
+        return
+    if intent == INTENT_AMBIGUOUS:
+        console.print(
+            "\n[bold yellow]Intent: AMBIGUOUS[/] "
+            "[yellow]Proceeding with full pipeline.[/]"
+        )
+    elif intent == INTENT_BUILD:
+        console.print("\n[bold yellow]Intent: BUILD[/]")
+
     patch_engine = PatchEngine()
 
     # ── Phase 1: Planning ─────────────────────────────────────────────
@@ -60,7 +82,7 @@ def run_pipeline(user_request: str) -> None:
 
     for task_id in graph.execution_order:
         task = task_lookup[task_id]
-        console.print(f"\n[bold green]━━━ Task {task.task_id}: {task.task} ━━━[/]")
+        console.print(f"\n[bold green]--- Task {task.task_id}: {task.task} ---[/]")
 
         # ── Coding + Review loop ──────────────────────────────────────
         console.print("  [cyan]Coder generating code...[/]")

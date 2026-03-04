@@ -29,6 +29,18 @@ models:
     model: gpt-4o-mini
     max_tokens: 2048
 
+  intent_classifier:
+    provider: openai
+    model: gpt-4o-mini
+    max_tokens: 16
+    temperature: 0
+
+  qa_responder:
+    provider: openai
+    model: gpt-4o-mini
+    max_tokens: 800
+    temperature: 0.2
+
 fallback:
   provider: replicate
   model: meta/meta-llama-3-70b-instruct
