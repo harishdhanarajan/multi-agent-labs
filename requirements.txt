@@ -1,0 +1,7 @@
+openai
+anthropic
+gitpython
+pydantic
+rich
+python-dotenv
+replicate
