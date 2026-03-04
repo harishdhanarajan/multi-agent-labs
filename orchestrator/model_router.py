@@ -66,8 +66,10 @@ class ModelRouter:
         tokens = max_tokens or cfg.get("max_tokens", 4096)
         temp = temperature if temperature is not None else cfg.get("temperature")
 
+        api_type = cfg.get("api_type", "chat")
+
         try:
-            return self._dispatch(cfg["provider"], cfg["model"], prompt, tokens, temp)
+            return self._dispatch(cfg["provider"], cfg["model"], prompt, tokens, temp, api_type)
         except Exception:
             logger.warning(
                 "Primary provider failed for role=%s, falling back", role, exc_info=True,
@@ -79,6 +81,7 @@ class ModelRouter:
                 prompt,
                 fb.get("max_tokens", 4096),
                 temp,
+                fb.get("api_type", "chat"),
             )
 
     # -- internal dispatch -------------------------------------------------
@@ -90,12 +93,13 @@ class ModelRouter:
         prompt: str,
         max_tokens: int,
         temperature: float | None = None,
+        api_type: str = "chat",
     ) -> str:
-        logger.info("[ModelRouter] provider=%s model=%s max_tokens=%d", provider, model, max_tokens)
+        logger.info("[ModelRouter] provider=%s model=%s max_tokens=%d api_type=%s", provider, model, max_tokens, api_type)
         if provider == "anthropic":
             return self._call_anthropic(model, prompt, max_tokens, temperature)
         if provider == "openai":
-            return self._call_openai(model, prompt, max_tokens, temperature)
+            return self._call_openai(model, prompt, max_tokens, temperature, api_type)
         if provider == "replicate":
             return self._call_replicate(model, prompt, max_tokens)
         raise ValueError(f"Unknown provider: {provider}")
@@ -123,16 +127,28 @@ class ModelRouter:
         prompt: str,
         max_tokens: int,
         temperature: float | None = None,
+        api_type: str = "chat",
     ) -> str:
-        kwargs = {
-            "model": model,
-            "max_tokens": max_tokens,
-            "messages": [{"role": "user", "content": prompt}],
-        }
-        if temperature is not None:
-            kwargs["temperature"] = temperature
-        response = self.openai_client.chat.completions.create(**kwargs)
-        return response.choices[0].message.content
+        if api_type == "completions":
+            kwargs = {
+                "model": model,
+                "prompt": prompt,
+                "max_tokens": max_tokens,
+            }
+            if temperature is not None:
+                kwargs["temperature"] = temperature
+            response = self.openai_client.completions.create(**kwargs)
+            return response.choices[0].text
+        else:
+            kwargs = {
+                "model": model,
+                "max_tokens": max_tokens,
+                "messages": [{"role": "user", "content": prompt}],
+            }
+            if temperature is not None:
+                kwargs["temperature"] = temperature
+            response = self.openai_client.chat.completions.create(**kwargs)
+            return response.choices[0].message.content
 
     def _call_replicate(self, model: str, prompt: str, max_tokens: int) -> str:
         import replicate

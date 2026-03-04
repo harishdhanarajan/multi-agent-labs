@@ -2,6 +2,7 @@
 
 import logging
 import sys
+from pathlib import Path
 
 from rich.console import Console
 from rich.panel import Panel
@@ -30,6 +31,33 @@ logger = logging.getLogger(__name__)
 
 MAX_REVIEW_ROUNDS = 3
 MAX_DEBUG_ROUNDS = 3
+GENERATED_TEST_MARKER = "# GENERATED_BY_MULTI_AGENT_TESTER"
+_WORKSPACE_DIR = Path(__file__).resolve().parent.parent / "workspace"
+
+
+def _tag_generated_tests(test_patches) -> None:
+    """Mark tester-generated files so stale ones can be cleaned up safely."""
+    for patch in test_patches.patches:
+        if patch.file_path.startswith("workspace/test_") and patch.file_path.endswith(".py"):
+            if not patch.content.lstrip().startswith(GENERATED_TEST_MARKER):
+                patch.content = f"{GENERATED_TEST_MARKER}\n{patch.content}"
+
+
+def _cleanup_stale_generated_tests(incoming_paths: set[str]) -> None:
+    """Delete old auto-generated test files that are not in the incoming patch set."""
+    if not _WORKSPACE_DIR.exists():
+        return
+    for path in _WORKSPACE_DIR.glob("test_*.py"):
+        rel_path = f"workspace/{path.name}"
+        if rel_path in incoming_paths:
+            continue
+        try:
+            content = path.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            continue
+        if content.lstrip().startswith(GENERATED_TEST_MARKER):
+            path.unlink(missing_ok=True)
+            logger.info("Removed stale generated test file: %s", rel_path)
 
 
 def run_pipeline(user_request: str) -> None:
@@ -118,6 +146,9 @@ def run_pipeline(user_request: str) -> None:
         console.print("  [cyan]Tester generating tests...[/]")
         test_patches = tester.generate_tests(task, code_patches)
         if test_patches.patches:
+            _tag_generated_tests(test_patches)
+            incoming_test_paths = {p.file_path for p in test_patches.patches}
+            _cleanup_stale_generated_tests(incoming_test_paths)
             patch_engine.apply_patches(test_patches)
 
         for debug_round in range(1, MAX_DEBUG_ROUNDS + 1):

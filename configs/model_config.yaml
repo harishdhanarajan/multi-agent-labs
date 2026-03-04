@@ -1,43 +1,49 @@
 models:
   planner:
     provider: anthropic
-    model: claude-sonnet-4-0
+    model: claude-opus-4-6
     max_tokens: 4096
 
   coder:
     provider: openai
-    model: gpt-4o
+    model: gpt-4.1
+    api_type: chat
     max_tokens: 4096
 
   reviewer:
     provider: anthropic
-    model: claude-sonnet-4-0
+    model: claude-opus-4-6
     max_tokens: 4096
 
   tester:
     provider: openai
-    model: gpt-4o-mini
+    model: gpt-4.1
+    api_type: chat
     max_tokens: 4096
 
   debugger:
     provider: openai
-    model: gpt-4o
+    model: gpt-4.1
+    api_type: chat
     max_tokens: 4096
 
   documenter:
     provider: openai
-    model: gpt-4o-mini
+    model: gpt-4.1
+    api_type: chat
     max_tokens: 2048
 
   intent_classifier:
     provider: openai
-    model: gpt-4o-mini
+    model: gpt-4.1
+    api_type: chat
     max_tokens: 16
     temperature: 0
 
   qa_responder:
     provider: openai
-    model: gpt-4o-mini
+    model: gpt-4.1
+    api_type: chat
     max_tokens: 800
     temperature: 0.2
 

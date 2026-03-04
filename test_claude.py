@@ -9,7 +9,7 @@ client = anthropic.Anthropic(
 )
 
 response = client.messages.create(
-    model="claude-sonnet-4-0",
+    model="claude-opus-4-6",
     max_tokens=200,
     messages=[
         {"role": "user", "content": "Say hello in one sentence"}
