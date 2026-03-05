@@ -2,6 +2,7 @@
 
 import logging
 import sys
+import time
 from pathlib import Path
 
 from rich.console import Console
@@ -31,6 +32,16 @@ logger = logging.getLogger(__name__)
 
 MAX_REVIEW_ROUNDS = 3
 MAX_DEBUG_ROUNDS = 3
+
+
+def _fmt_elapsed(seconds: float) -> str:
+    """Return a compact human-readable elapsed time string."""
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    minutes, secs = divmod(seconds, 60)
+    return f"{int(minutes)}m {secs:.0f}s"
+
+
 GENERATED_TEST_MARKER = "# GENERATED_BY_MULTI_AGENT_TESTER"
 _WORKSPACE_DIR = Path(__file__).resolve().parent.parent / "workspace"
 
@@ -63,27 +74,24 @@ def _cleanup_stale_generated_tests(incoming_paths: set[str]) -> None:
 def run_pipeline(user_request: str) -> None:
     """Execute the full multi-agent pipeline for *user_request*."""
 
+    pipeline_start = time.monotonic()
+
     console.print(Panel(f"[bold cyan]Request:[/] {user_request}", title="Multi-Agent Pipeline"))
 
     router = ModelRouter()
 
     intent = IntentClassifier(router).classify(user_request)
     if intent == INTENT_QUESTION:
-        console.print("\n[bold yellow]Intent: QUESTION[/]")
         answer = QAResponder(router).answer(user_request)
         console.print(Panel(answer or "(No answer returned)", title="Q&A Response"))
         return
     if intent == INTENT_AMBIGUOUS:
-        console.print(
-            "\n[bold yellow]Intent: AMBIGUOUS[/] "
-            "[yellow]Proceeding with full pipeline.[/]"
-        )
-    elif intent == INTENT_BUILD:
-        console.print("\n[bold yellow]Intent: BUILD[/]")
+        console.print("[dim]Intent ambiguous -- proceeding with full pipeline.[/]")
 
     patch_engine = PatchEngine()
 
     # ── Phase 1: Planning ─────────────────────────────────────────────
+    t0 = time.monotonic()
     console.print("\n[bold yellow]Phase 1: Planning[/]")
     planner = PlannerAgent(router)
     queue = planner.create_plan(user_request)
@@ -91,13 +99,12 @@ def run_pipeline(user_request: str) -> None:
         console.print("[red]Planner failed to produce tasks. Aborting.[/]")
         return
     for t in queue.tasks:
-        console.print(f"  Task {t.task_id}: {t.task} (deps={t.dependencies})")
+        console.print(f"  Task {t.task_id}: {t.task}")
+    console.print(f"[dim]  Planning done in {_fmt_elapsed(time.monotonic() - t0)}[/]")
 
     # ── Phase 2: Task Graph ───────────────────────────────────────────
-    console.print("\n[bold yellow]Phase 2: Building Task Graph[/]")
     graph_builder = TaskGraphBuilder()
     graph = graph_builder.build(queue)
-    console.print(f"  Execution order: {graph.execution_order}")
 
     # ── Phase 3-6: Per-task loop ──────────────────────────────────────
     coder = CoderAgent(router)
@@ -110,40 +117,38 @@ def run_pipeline(user_request: str) -> None:
 
     for task_id in graph.execution_order:
         task = task_lookup[task_id]
+        task_start = time.monotonic()
         console.print(f"\n[bold green]--- Task {task.task_id}: {task.task} ---[/]")
 
         # ── Coding + Review loop ──────────────────────────────────────
-        console.print("  [cyan]Coder generating code...[/]")
+        console.print("  [cyan]Coding...[/]")
         code_patches = coder.generate_code(task)
         if not code_patches.patches:
-            console.print("  [red]Coder produced no patches, skipping task.[/]")
+            console.print("  [red]No patches produced, skipping.[/]")
             task.status = "failed"
             continue
 
         for review_round in range(1, MAX_REVIEW_ROUNDS + 1):
-            console.print(f"  [cyan]Reviewer round {review_round}...[/]")
             review = reviewer.review(task, code_patches)
-            console.print(f"    Verdict: {review.verdict.value}")
-            if review.comments:
-                console.print(f"    Comments: {review.comments[:200]}")
-
+            verdict = review.verdict.value
             if review.verdict == ReviewVerdict.APPROVED:
+                console.print(f"  [green]Review: {verdict}[/]")
                 break
-
+            console.print(f"  [yellow]Review: {verdict}[/]")
+            if review.comments:
+                console.print(f"    {review.comments[:120]}")
             if review_round < MAX_REVIEW_ROUNDS:
-                console.print("  [cyan]Coder revising...[/]")
+                console.print("  [cyan]Revising...[/]")
                 code_patches = coder.generate_code(task)
         else:
-            console.print("  [yellow]Max review rounds reached, proceeding with latest code.[/]")
+            console.print("  [yellow]Max review rounds reached, proceeding.[/]")
 
         # ── Apply patches ─────────────────────────────────────────────
-        console.print("  [cyan]Applying patches...[/]")
         written = patch_engine.apply_patches(code_patches)
-        for f in written:
-            console.print(f"    Wrote: {f}")
+        console.print(f"  Wrote {len(written)} file(s)")
 
         # ── Testing + Debug loop ──────────────────────────────────────
-        console.print("  [cyan]Tester generating tests...[/]")
+        console.print("  [cyan]Testing...[/]")
         test_patches = tester.generate_tests(task, code_patches)
         if test_patches.patches:
             _tag_generated_tests(test_patches)
@@ -152,51 +157,49 @@ def run_pipeline(user_request: str) -> None:
             patch_engine.apply_patches(test_patches)
 
         for debug_round in range(1, MAX_DEBUG_ROUNDS + 1):
-            console.print(f"  [cyan]Running tests (round {debug_round})...[/]")
             test_result = test_runner.run()
-            console.print(
-                f"    Results: {test_result.total} total, "
-                f"{test_result.failures} failed, "
-                f"passed={test_result.passed}"
-            )
-
             if test_result.passed:
+                console.print(f"  [green]Tests passed ({test_result.total} total)[/]")
                 break
 
+            console.print(
+                f"  [red]Tests: {test_result.failures}/{test_result.total} failed[/]"
+            )
             if debug_round < MAX_DEBUG_ROUNDS:
-                console.print("  [cyan]Debugger analyzing failures...[/]")
+                console.print("  [cyan]Debugging...[/]")
                 debug_result = debugger.debug(task, code_patches, test_result.output)
-                console.print(f"    Diagnosis: {debug_result.diagnosis[:200]}")
                 if debug_result.fix and debug_result.fix.patches:
                     patch_engine.apply_patches(debug_result.fix)
                     code_patches = debug_result.fix
                 else:
-                    console.print("    [yellow]No fix produced, skipping further debug.[/]")
+                    console.print("  [yellow]No fix produced, moving on.[/]")
                     break
         else:
             console.print("  [yellow]Max debug rounds reached.[/]")
 
         task.status = "done"
-        console.print(f"  [green]Task {task.task_id} complete.[/]")
+        console.print(f"  [dim]Task done in {_fmt_elapsed(time.monotonic() - task_start)}[/]")
 
     # ── Phase 7: Documentation ────────────────────────────────────────
-    console.print("\n[bold yellow]Phase 7: Documentation[/]")
+    t0 = time.monotonic()
+    console.print("\n[bold yellow]Generating docs...[/]")
     documenter = DocumentationAgent(router)
     doc_patches = documenter.generate_docs()
     if doc_patches.patches:
         patch_engine.apply_patches(doc_patches)
-        console.print("  Documentation generated.")
+        console.print(f"  Documentation generated in {_fmt_elapsed(time.monotonic() - t0)}")
     else:
         console.print("  [yellow]No documentation produced.[/]")
 
     # ── Done ──────────────────────────────────────────────────────────
-    console.print(Panel("[bold green]Pipeline complete![/]", title="Done"))
+    total = _fmt_elapsed(time.monotonic() - pipeline_start)
+    console.print(Panel(f"[bold green]Pipeline complete[/] in {total}", title="Done"))
 
 
 def main():
     logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(name)s %(levelname)s %(message)s",
+        level=logging.WARNING,
+        format="%(levelname)s %(message)s",
     )
 
     if len(sys.argv) < 2:

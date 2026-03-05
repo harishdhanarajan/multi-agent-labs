@@ -1,5 +1,6 @@
 import os
 
+
 class DatabaseConfig:
     def __init__(self):
         # Load environment variables or set default values
@@ -19,13 +20,23 @@ class DatabaseConfig:
             'database': self.database
         }
 
+    def print_config(self, mask_password=True):
+        """Print the database configuration in a user-friendly format."""
+        config = self.get_config()
+        password_display = "****" if (mask_password and config['password']) else config['password'] or "(not set)"
+
+        print("\n" + "=" * 50)
+        print("  Database Configuration")
+        print("=" * 50)
+        print(f"  Host     : {config['host']}")
+        print(f"  Port     : {config['port']}")
+        print(f"  User     : {config['user']}")
+        print(f"  Password : {password_display}")
+        print(f"  Database : {config['database']}")
+        print("=" * 50 + "\n")
+
+
 # Example usage
 if __name__ == "__main__":
     db_config = DatabaseConfig()
-    config = db_config.get_config()
-    print("Database Configuration:")
-    print(f"Host: {config['host']}")
-    print(f"Port: {config['port']}")
-    print(f"User: {config['user']}")
-    print(f"Password: {config['password']}")
-    print(f"Database: {config['database']}")
+    db_config.print_config()

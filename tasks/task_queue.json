@@ -2,13 +2,13 @@
   "tasks": [
     {
       "task_id": 1,
-      "task": "Create workspace/sftp_client.py with an SFTPClient class that imports paramiko and uses SFTPConfig from sftp_config.py for connection settings",
+      "task": "Implement divide(a, b) function in calculator.py, raising ValueError on zero divisor",
       "dependencies": [],
       "status": "pending"
     },
     {
       "task_id": 2,
-      "task": "Implement a connect() method in SFTPClient that establishes an SSH/SFTP connection to the local SFTP server using paramiko with proper error handling",
+      "task": "Add tests for divide function in test_calculator.py covering normal and division by zero cases",
       "dependencies": [
         1
       ],
@@ -16,35 +16,9 @@
     },
     {
       "task_id": 3,
-      "task": "Implement a disconnect() method in SFTPClient to close the SFTP and SSH connections gracefully",
+      "task": "Add tests for divide function in test_arithmetic.py covering normal and division by zero cases",
       "dependencies": [
-        2
-      ],
-      "status": "pending"
-    },
-    {
-      "task_id": 4,
-      "task": "Implement an upload_file(local_path, remote_path) method in SFTPClient that uploads a local file to the SFTP server with error handling",
-      "dependencies": [
-        2
-      ],
-      "status": "pending"
-    },
-    {
-      "task_id": 5,
-      "task": "Add a context manager (__enter__/__exit__) to SFTPClient so connections are automatically opened and closed",
-      "dependencies": [
-        2,
-        3
-      ],
-      "status": "pending"
-    },
-    {
-      "task_id": 6,
-      "task": "Create workspace/test_sftp_client.py with unit tests for connect, disconnect, and upload_file using unittest.mock to mock paramiko calls",
-      "dependencies": [
-        4,
-        5
+        1
       ],
       "status": "pending"
     }

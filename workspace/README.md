@@ -1,13 +1,13 @@
 # Python Database & SFTP Utility Project
 
-This project provides modular utilities in Python for:
+This project provides modular Python utilities for:
 
 - Connecting to a MySQL database with configurable parameters
-- Performing basic arithmetic operations
-- Flexible SFTP uploads/downloads using Paramiko with a configuration system
-- Simple utility functions (greeting, string reverse)
+- Performing basic arithmetic operations (addition, subtraction, multiplication, division)
+- SFTP file uploads/downloads using Paramiko with a configuration system
+- Common utility functions (greeting, string reversal, etc.)
 
-The modules are designed to be reusable in Python scripts or be extended for more complex applications.
+All modules are designed to be reusable in different Python scripts or as extensible components for larger applications.
 
 ---
 
@@ -16,14 +16,15 @@ The modules are designed to be reusable in Python scripts or be extended for mor
 - [Features](#features)
 - [Requirements](#requirements)
 - [How to Use](#how-to-use)
-  - [Database Connection](#database-connection)
-  - [Arithmetic Calculator](#arithmetic-calculator)
-  - [SFTP File Transfers](#sftp-file-transfers)
-  - [Utility Functions](#utility-functions)
+  - [A. Database Connection](#a-database-connection)
+  - [B. Arithmetic Calculator](#b-arithmetic-calculator)
+  - [C. SFTP File Transfers](#c-sftp-file-transfers)
+  - [D. Utility Functions](#d-utility-functions)
 - [Module and Function Reference](#module-and-function-reference)
-  - [app.py](#apppy)
   - [calculator.py](#calculatorpy)
+  - [add_numbers.py](#add_numberspy)
   - [db_config.py](#db_configpy)
+  - [app.py](#apppy)
   - [sftp_config.py](#sftp_configpy)
   - [sftp_client.py](#sftp_clientpy)
   - [utility_functions.py](#utility_functionspy)
@@ -33,12 +34,12 @@ The modules are designed to be reusable in Python scripts or be extended for mor
 
 ## Features
 
-- **MySQL Connection:** Establish and manage database connections with error handling.
-- **Configurable:** Load DB and SFTP connection settings from environment variables or provide explicitly.
-- **Calculator:** Perform addition, subtraction, multiplication, and division (with error for division by zero).
-- **SFTP Support:** Upload, download, and list files from an SFTP server using key or password authentication.
-- **Utility Functions:** Greet users and reverse strings for demonstration or extension.
-- **Tested:** Unit tests included for core modules.
+- **MySQL Connection:** Establish and manage MySQL database connections with error handling. Configurable via environment variables or code.
+- **Configurable:** DB/SFTP connection settings are controlled by environment or config objects.
+- **Calculator:** Addition, subtraction, multiplication, and division with user-friendly output.
+- **SFTP Support:** Upload, download, and list files from an SFTP server (key-based or password authentication).
+- **Utility Functions:** Greeting messages and string reversal demonstration functions.
+- **Unit Tested:** Core modules are covered by tests.
 
 ---
 
